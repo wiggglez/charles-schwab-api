@@ -1,24 +1,40 @@
-package com.github.wigggy.charles_schwab_api
+package com.github.wiggglez.charles_schwab_api
 
-import com.github.wigggy.charles_schwab_api.data_objs.auth.Authorization
-import com.github.wigggy.charles_schwab_api.auth.responses.AccessTokenResponse
-import com.github.wigggy.charles_schwab_api.auth.responses.RefreshTokenResponse
-import com.github.wigggy.charles_schwab_api.data_objs.OptionChain
-import com.github.wigggy.charles_schwab_api.data_objs.OptionQuote
-import com.github.wigggy.charles_schwab_api.data_objs.StockQuote
-import com.github.wigggy.charles_schwab_api.data_objs.TopStockLists
-import com.github.wigggy.charles_schwab_api.data_objs.responses.AccountNumbersResponse
-import com.github.wigggy.charles_schwab_api.data_objs.responses.*
-import com.github.wigggy.charles_schwab_api.data_objs.stockchart.CharlesSchwabHistoricData
-import com.github.wigggy.charles_schwab_api.tools.*
+import com.github.wiggglez.charles_schwab_api.data_objs.auth.Authorization
+import com.github.wiggglez.charles_schwab_api.data_objs.responses.AccessTokenResponse
+import com.github.wiggglez.charles_schwab_api.data_objs.responses.RefreshTokenResponse
+import com.github.wiggglez.charles_schwab_api.data_objs.OptionChain
+import com.github.wiggglez.charles_schwab_api.data_objs.OptionQuote
+import com.github.wiggglez.charles_schwab_api.data_objs.StockQuote
+import com.github.wiggglez.charles_schwab_api.data_objs.TopStockLists
+import com.github.wiggglez.charles_schwab_api.data_objs.responses.AccountNumbersResponse
+import com.github.wiggglez.charles_schwab_api.data_objs.responses.ChartResponse
+import com.github.wiggglez.charles_schwab_api.data_objs.responses.OptionChainResponse
+import com.github.wiggglez.charles_schwab_api.data_objs.responses.OptionQuoteResp
+import com.github.wiggglez.charles_schwab_api.data_objs.responses.StockQuoteResponse
+import com.github.wiggglez.charles_schwab_api.data_objs.responses.convertToOptionChain
+import com.github.wiggglez.charles_schwab_api.data_objs.responses.convertToStockChart
+import com.github.wiggglez.charles_schwab_api.data_objs.responses.toOptionQuote
+import com.github.wiggglez.charles_schwab_api.data_objs.responses.toStockQuote
+import com.github.wiggglez.charles_schwab_api.data_objs.stockchart.CharlesSchwabHistoricData
+import com.github.wiggglez.charles_schwab_api.tools.FileHelper
+import com.github.wiggglez.charles_schwab_api.tools.Log
+import com.github.wiggglez.charles_schwab_api.tools.NetworkClient
+import com.github.wiggglez.charles_schwab_api.tools.convertTimestampToDateyyyyMMdd
+import com.github.wiggglez.charles_schwab_api.tools.gson
+import com.github.wiggglez.charles_schwab_api.tools.i
+import com.github.wiggglez.charles_schwab_api.tools.w
 import com.google.gson.reflect.TypeToken
 import okhttp3.FormBody
 import okhttp3.Request
+import java.io.File
+import java.nio.file.Paths
 import java.text.DecimalFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
+import kotlin.collections.get
 import kotlin.system.exitProcess
 
 
@@ -37,8 +53,14 @@ class CharlesSchwabApi private constructor(
 
 
     init {
+        if (authSavePath == null) {
+            val currentDir = Paths.get("").toAbsolutePath().toString()
+            authPath = currentDir + "${File.separator}csApi_auth.json"
+        }
+        else {
+            authPath = authSavePath
+        }
 
-        authPath = authSavePath ?: "csApi_auth.json"
         // Try to load auth keys
         auth = initAuthJson(appKey, appSecret)
         // Check status of Refresh Token
@@ -187,6 +209,13 @@ class CharlesSchwabApi private constructor(
             auth = updatedAuth
 
             // Save to file
+            println("\n\n" +
+                    "---- Warning ---------------------------------------------------------------------------------" +
+                    "\n\n" +
+                    "Saving Auth File to: $authPath" +
+                    "\n\n" +
+                    "----------------------------------------------------------------------------------------------" +
+                    "\n\n" )
             FileHelper.writeFile(authPath, gson.toJson(updatedAuth))
 
         } else {
@@ -396,7 +425,7 @@ class CharlesSchwabApi private constructor(
         }
     }
 
-    // TODO Make private
+
     private fun getMultiQuote(symbols: List<String>): String? {
         try {
             val sList = symbols.map {it.uppercase()}

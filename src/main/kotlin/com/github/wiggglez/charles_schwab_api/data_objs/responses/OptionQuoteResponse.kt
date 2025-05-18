@@ -1,6 +1,6 @@
-package com.github.wigggy.charles_schwab_api.data_objs.responses
+package com.github.wiggglez.charles_schwab_api.data_objs.responses
 
-import com.github.wigggy.charles_schwab_api.data_objs.OptionQuote
+import com.github.wiggglez.charles_schwab_api.data_objs.OptionQuote
 
 internal data class OptionQuoteResp(
     val assetMainType: String?,

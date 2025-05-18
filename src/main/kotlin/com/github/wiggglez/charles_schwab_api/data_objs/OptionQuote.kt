@@ -1,4 +1,4 @@
-package com.github.wigggy.charles_schwab_api.data_objs
+package com.github.wiggglez.charles_schwab_api.data_objs
 
 
 /** All dollar values are multiplied by 100 already. No need to x100 ANY values for this quote */

@@ -1,9 +1,9 @@
-package com.github.wigggy.charles_schwab_api.data_objs.responses
+package com.github.wiggglez.charles_schwab_api.data_objs.responses
 
-import com.github.wigggy.charles_schwab_api.data_objs.Option
-import com.github.wigggy.charles_schwab_api.data_objs.OptionChain
-import com.github.wigggy.charles_schwab_api.data_objs.OptionDeliverable
-import com.github.wigggy.charles_schwab_api.data_objs.Underlying
+import com.github.wiggglez.charles_schwab_api.data_objs.Option
+import com.github.wiggglez.charles_schwab_api.data_objs.OptionChain
+import com.github.wiggglez.charles_schwab_api.data_objs.OptionDeliverable
+import com.github.wiggglez.charles_schwab_api.data_objs.Underlying
 
 internal data class OptionChainResponse(
     val symbol: String,

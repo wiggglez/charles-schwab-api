@@ -1,4 +1,4 @@
-package com.github.wigggy.charles_schwab_api.data_objs.auth
+package com.github.wiggglez.charles_schwab_api.data_objs.auth
 
 data class Authorization (
     val key: String = "",

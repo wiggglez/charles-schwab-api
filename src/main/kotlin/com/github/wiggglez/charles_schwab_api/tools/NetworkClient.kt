@@ -1,4 +1,4 @@
-package com.github.wigggy.charles_schwab_api.tools
+package com.github.wiggglez.charles_schwab_api.tools
 
 import okhttp3.*
 import java.util.concurrent.TimeUnit
