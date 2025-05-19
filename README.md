@@ -43,6 +43,7 @@ process
 <h3>NOTES...</h3>
 
 - Auth info is saved locally. A path can be provided or left null
+  - If a path is provided, Make sure it ends with the .json extension
 
 - When requesting Historical Data, pay attention to the params. The period param (days, minutes, hours) needs
 to be one out of a specific group of numbers. For example when getting a chart by years, you can only get

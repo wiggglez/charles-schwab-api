@@ -41,7 +41,7 @@ import kotlin.system.exitProcess
 class CharlesSchwabApi private constructor(
     appKey: String,
     appSecret: String,
-    authSavePath: String? = null,
+    authJsonSavePath: String? = null,
 ) {
     private val threadLockAccessToken = Any()
     private var auth: Authorization
@@ -53,12 +53,20 @@ class CharlesSchwabApi private constructor(
 
 
     init {
-        if (authSavePath == null) {
+        if (authJsonSavePath == null) {
             val currentDir = Paths.get("").toAbsolutePath().toString()
             authPath = currentDir + "${File.separator}csApi_auth.json"
         }
         else {
-            authPath = authSavePath
+            if (!authJsonSavePath.lowercase().endsWith(".json")){
+                println("\u001B[31m -- WARNING --\n" +
+                        "Location: CharlesSchwabApi().buildApi()\n" +
+                        "Fix: The parameter 'authJsonSavePath' Must end with .json\n" +
+                        "Exiting Program")
+                exitProcess(-1)
+            }
+            authJsonSavePath.lowercase().endsWith(".json")
+            authPath = authJsonSavePath
         }
 
         // Try to load auth keys
@@ -802,7 +810,7 @@ class CharlesSchwabApi private constructor(
             }
         }
     }
+
+
 }
-
-
 
