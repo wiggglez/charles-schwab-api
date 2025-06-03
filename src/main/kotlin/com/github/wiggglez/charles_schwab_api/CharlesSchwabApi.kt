@@ -1,5 +1,8 @@
 package com.github.wiggglez.charles_schwab_api
 
+import com.github.wiggglez.charles_schwab_api.data_objs.AccountInfo
+import com.github.wiggglez.charles_schwab_api.data_objs.CurrentBalances
+import com.github.wiggglez.charles_schwab_api.data_objs.InitialBalances
 import com.github.wiggglez.charles_schwab_api.data_objs.auth.Authorization
 import com.github.wiggglez.charles_schwab_api.data_objs.responses.AccessTokenResponse
 import com.github.wiggglez.charles_schwab_api.data_objs.responses.RefreshTokenResponse
@@ -8,6 +11,7 @@ import com.github.wiggglez.charles_schwab_api.data_objs.OptionQuote
 import com.github.wiggglez.charles_schwab_api.data_objs.StockQuote
 import com.github.wiggglez.charles_schwab_api.data_objs.TopStockLists
 import com.github.wiggglez.charles_schwab_api.data_objs.responses.AccountNumbersResponse
+import com.github.wiggglez.charles_schwab_api.data_objs.responses.AcctInfoResponse
 import com.github.wiggglez.charles_schwab_api.data_objs.responses.ChartResponse
 import com.github.wiggglez.charles_schwab_api.data_objs.responses.OptionChainResponse
 import com.github.wiggglez.charles_schwab_api.data_objs.responses.OptionQuoteResp
@@ -772,10 +776,84 @@ class CharlesSchwabApi private constructor(
         if (resp.isSuccessful) {
             val body = resp.body?.string()
             val accountListType = object : TypeToken<List<AccountNumbersResponse>>() {}.type
-            val accountKeys = gson.fromJson<List<AccountNumbersResponse>?>(body, accountListType).get(0)
+            val accountKeys = gson.fromJson<List<AccountNumbersResponse>?>(
+                body,
+                accountListType
+            ).get(0)        // Only 1 item in list
 
             return accountKeys
         } else {
+            return null
+        }
+    }
+
+
+    fun getAccountInfo(): AccountInfo? {
+        try {
+
+            // Build request... no parameters needed
+            val req = Request.Builder()
+                .get()
+                .url(account_base_endpoint + "/accounts?fields=positions")
+                .header("Authorization", "Bearer ${getAccessToken()}")
+                .header("accept", "application/json")
+                .build()
+
+            // Execute request, check success
+            val resp = NetworkClient.getClient().newCall(req).execute()
+            if (resp.isSuccessful) {
+
+                // Convert Json to Full Response Object (Lots of unwanted data)
+                val body = resp.body?.string()
+                val ttoken = object : TypeToken<List<AcctInfoResponse>>() {}.type
+                val responseRawObj = gson.fromJson<List<AcctInfoResponse>>(
+                    body,
+                    ttoken
+                ).get(0)        // There's only 1 item in list
+
+                val obj = responseRawObj.securitiesAccount
+
+                // Convert Full Response Object to Preferred Data Class with relevant fields
+                val data = AccountInfo(
+                    initialBalances = InitialBalances(
+                        buyingPower = obj.initialBalances.buyingPower,
+                        cashBalance = obj.initialBalances.cashBalance,
+                        cashAvailableForTrading = obj.initialBalances.cashAvailableForTrading,
+                        equity = obj.initialBalances.equity,
+                        totalCash = obj.initialBalances.totalCash,
+                        unsettledCash = obj.initialBalances.unsettledCash,
+                        pendingDeposits = obj.initialBalances.pendingDeposits,
+                        accountValue = obj.initialBalances.accountValue
+                    ),
+                    currentBalances = CurrentBalances(
+                        availableFunds = obj.currentBalances.availableFunds,
+                        buyingPower = obj.currentBalances.buyingPower,
+                        equity = obj.currentBalances.equity,
+                        stockBuyingPower = obj.currentBalances.stockBuyingPower,
+                        optionBuyingPower = obj.currentBalances.optionBuyingPower
+                    ),
+                    openPositions = obj.positions ?: listOf()
+                )
+
+                return data
+            }
+            else {
+                Log.w(
+                    CharlesSchwabApi::class.java.simpleName.toString(),
+                    "'getAccountInfo() request was unsuccessful.\n" +
+                            "Response: ${resp.body?.string()}\n" +
+                            "Code: ${resp.code}"
+                )
+                return null
+            }
+
+
+        } catch (E: Exception) {
+            Log.w(
+                CharlesSchwabApi::class.java.simpleName.toString(),
+                "'getAccountInfo() request was unsuccessful.\n" +
+                        "Exception Caught: ${E}\n${E.stackTraceToString()}"
+            )
             return null
         }
     }
