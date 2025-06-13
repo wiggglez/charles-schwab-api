@@ -43,8 +43,8 @@ import kotlin.system.exitProcess
 
 
 class CharlesSchwabApi private constructor(
-    appKey: String,
-    appSecret: String,
+    private val appKeyGetter: () -> String,
+    private val appSecretGetter: () -> String,
     authJsonSavePath: String? = null,
 ) {
     private val threadLockAccessToken = Any()
@@ -54,7 +54,6 @@ class CharlesSchwabApi private constructor(
     private val market_data_base_endpoint = "https://api.schwabapi.com/marketdata/v1"
     private val auth_base_endpoint = "https://api.schwabapi.com/v1/oauth"
     private val authPath: String
-
 
     init {
         if (authJsonSavePath == null) {
@@ -74,7 +73,7 @@ class CharlesSchwabApi private constructor(
         }
 
         // Try to load auth keys
-        auth = initAuthJson(appKey, appSecret)
+        auth = initAuthJson()
         // Check status of Refresh Token
         init_check_refresh_token()
         loadTopStocksList()
@@ -89,7 +88,7 @@ class CharlesSchwabApi private constructor(
     }
 
 
-    private fun initAuthJson(key: String, secret: String): Authorization {
+    private fun initAuthJson(): Authorization {
         // Try to load
         try {
             val json = FileHelper.readFileToString(authPath)
@@ -98,9 +97,7 @@ class CharlesSchwabApi private constructor(
             println("\n#############################################################################################")
             println("\nWarning -- No Auth File Found. New Auth Created. Please Login.\n")
             println("#############################################################################################\n")
-            val a = Authorization(
-                key, secret
-            )
+            val a = Authorization()
             FileHelper.writeFile(authPath, gson.toJson(a))
             return a
         }
@@ -139,7 +136,7 @@ class CharlesSchwabApi private constructor(
     fun loginBasicCommandLine() {
         // Build login url
         val url = "$auth_base_endpoint/authorize?client_id=key_here&redirect_uri=https://127.0.0.1"
-            .replace("key_here", auth.key)
+            .replace("key_here", appKeyGetter())
 
         // Get input from user + extract code
         print("Please login to Charles Schwab using this url, then paste the final url below...\n\n$url\n\n>>>: ")
@@ -157,7 +154,8 @@ class CharlesSchwabApi private constructor(
             .build()
 
         // Create Headers
-        val base64Credentials = Base64.getEncoder().encodeToString("${auth.key}:${auth.secret}".toByteArray())
+        val base64Credentials = Base64.getEncoder()
+            .encodeToString("${appKeyGetter()}:${appSecretGetter()}".toByteArray())
         val req = Request.Builder()
             .url(auth_base_endpoint + "/token")
             .post(formBody)
@@ -178,8 +176,6 @@ class CharlesSchwabApi private constructor(
             val refreshTokenExpiry = System.currentTimeMillis() + 604_800_000 - 3_600_000
 
             auth = Authorization(
-                auth.key,
-                auth.secret,
                 accountNumber = "",
                 accountNumberHashValue =  "",
                 refresh_token = tokenResponse.refresh_token,
@@ -208,8 +204,6 @@ class CharlesSchwabApi private constructor(
             println("Account Numbers retrieved successfully.")
 
             val updatedAuth = Authorization(
-                auth.key,
-                auth.secret,
                 accountNumber = actKeys.accountNumber,
                 accountNumberHashValue =  actKeys.hashValue,
                 refresh_token = tokenResponse.refresh_token,
@@ -245,7 +239,7 @@ class CharlesSchwabApi private constructor(
 
     fun loginUrl(): String {
         return "$auth_base_endpoint/authorize?client_id=key_here&redirect_uri=https://127.0.0.1"
-            .replace("key_here", auth.key)
+            .replace("key_here", appKeyGetter())
     }
 
 
@@ -264,7 +258,8 @@ class CharlesSchwabApi private constructor(
                 .build()
 
             // Create Headers
-            val base64Credentials = Base64.getEncoder().encodeToString("${auth.key}:${auth.secret}".toByteArray())
+            val base64Credentials = Base64.getEncoder()
+                .encodeToString("${appKeyGetter()}:${appSecretGetter()}".toByteArray())
             val req = Request.Builder()
                 .url(auth_base_endpoint + "/token")
                 .post(formBody)
@@ -303,8 +298,6 @@ class CharlesSchwabApi private constructor(
                 println("Account Numbers retrieved successfully.")
 
                 auth = Authorization(
-                    auth.key,
-                    auth.secret,
                     accountNumber = actKeys.accountNumber,
                     accountNumberHashValue =  actKeys.hashValue,
                     refresh_token = tokenResponse.refresh_token,
@@ -359,7 +352,8 @@ class CharlesSchwabApi private constructor(
                     .add("refresh_token", rtoken)
                     .build()
 
-                val base64Credentials = Base64.getEncoder().encodeToString("${auth.key}:${auth.secret}".toByteArray())
+                val base64Credentials = Base64.getEncoder()
+                    .encodeToString("${appKeyGetter()}:${appSecretGetter()}".toByteArray())
                 val request = Request.Builder()
                     .url(auth_base_endpoint + "/token")
                     .post(postBody)
@@ -373,8 +367,6 @@ class CharlesSchwabApi private constructor(
                     val body = gson.fromJson(requestCall.body?.string(), AccessTokenResponse::class.java)
                     val newAccessExpiry = System.currentTimeMillis() + 1_800_000 - 60_000       // Minus 1min for time safety
                     val newAuth = Authorization(
-                        auth.key,
-                        auth.secret,
                         auth.accountNumber,
                         auth.accountNumberHashValue,
                         auth.refresh_token,
@@ -874,16 +866,39 @@ class CharlesSchwabApi private constructor(
             }
         }
 
+
+//        fun buildApi(
+//            appKey: String,
+//            appSecret: String,
+//            savePath: String? = null
+//        ): CharlesSchwabApi {
+//            if (instance == null){
+//                instance = CharlesSchwabApi(appKey, appSecret, savePath)
+//                return instance!!
+//            } else {
+//                println("CsApi() Has already been built with Auth JSON Path set to: $path")
+//                return instance!!
+//            }
+//        }
+
+
+        // TODO -- Fix it so that the Secret and App Key DONT GET SAVED IN A JSON FILE
+        //      $ 15,000+ in your account. Treat it with pride... Worker!
         fun buildApi(
-            appKey: String,
-            appSecret: String,
-            savePath: String? = null
+            appKeyGetter: () -> String,
+            appSecretGetter: () -> String,
+            tokenSavePath: String? = null
         ): CharlesSchwabApi {
-            if (instance == null){
-                instance = CharlesSchwabApi(appKey, appSecret, savePath)
+
+            if (instance == null) {
+                instance = CharlesSchwabApi(
+                    appKeyGetter, appSecretGetter, tokenSavePath
+                )
                 return instance!!
             } else {
-                println("CsApi() Has already been built with Auth JSON Path set to: $path")
+                println("${CharlesSchwabApi::class.java.simpleName.toString()}.buildApi()" +
+                        " Has already been built with Auth JSON Path set to: $path. " +
+                        "Call getInstance() to use api")
                 return instance!!
             }
         }

@@ -1,8 +1,6 @@
 package com.github.wiggglez.charles_schwab_api.data_objs.auth
 
 data class Authorization (
-    val key: String = "",
-    val secret: String = "",
 
     val accountNumber: String = "",
     val accountNumberHashValue: String = "",
