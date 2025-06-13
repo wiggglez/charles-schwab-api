@@ -882,8 +882,6 @@ class CharlesSchwabApi private constructor(
 //        }
 
 
-        // TODO -- Fix it so that the Secret and App Key DONT GET SAVED IN A JSON FILE
-        //      $ 15,000+ in your account. Treat it with pride... Worker!
         fun buildApi(
             appKeyGetter: () -> String,
             appSecretGetter: () -> String,
