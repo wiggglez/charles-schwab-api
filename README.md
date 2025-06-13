@@ -18,7 +18,15 @@ You will need to login like this once per week.
 
 ```kotlin
 fun main() {
-    val csApi = CsApi.buildApi("your-key", "your-secret", "path/to/save/auth.json")
+    val csApi = CsApi.buildApi(
+      // A lambda that provides the app key
+      { "your-key" },
+      
+      // A lambda that provides the app Secret
+      { "your-secret" },
+      
+      // Optionally provided path used to save Json containing access tokens 
+      "path/to/save/auth.json")
     csApi.loginBasicCommandLine()
 }
 ```
