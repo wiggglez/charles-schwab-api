@@ -3,6 +3,7 @@ package com.github.wiggglez.charles_schwab_api
 import com.github.wiggglez.charles_schwab_api.data_objs.AccountInfo
 import com.github.wiggglez.charles_schwab_api.data_objs.CurrentBalances
 import com.github.wiggglez.charles_schwab_api.data_objs.InitialBalances
+import com.github.wiggglez.charles_schwab_api.data_objs.QuotesCombined
 import com.github.wiggglez.charles_schwab_api.data_objs.auth.Authorization
 import com.github.wiggglez.charles_schwab_api.data_objs.responses.AccessTokenResponse
 import com.github.wiggglez.charles_schwab_api.data_objs.responses.RefreshTokenResponse
@@ -28,6 +29,7 @@ import com.github.wiggglez.charles_schwab_api.tools.convertTimestampToDateyyyyMM
 import com.github.wiggglez.charles_schwab_api.tools.gson
 import com.github.wiggglez.charles_schwab_api.tools.i
 import com.github.wiggglez.charles_schwab_api.tools.w
+import com.google.gson.JsonElement
 import com.google.gson.reflect.TypeToken
 import okhttp3.FormBody
 import okhttp3.Request
@@ -430,7 +432,7 @@ class CharlesSchwabApi private constructor(
     }
 
 
-    private fun getMultiQuote(symbols: List<String>): String? {
+    private fun getMultiQuote(symbols: Collection<String>): String? {
         try {
             val sList = symbols.map {it.uppercase()}
             val token = getAccessToken()
@@ -458,7 +460,7 @@ class CharlesSchwabApi private constructor(
     }
 
 
-    fun getMultiOptionQuote(symbols: List<String>): Map<String, OptionQuote>? {
+    fun getMultiOptionQuote(symbols: Collection<String>): Map<String, OptionQuote>? {
         try {
             val body = getMultiQuote(symbols) ?: return null
             val jsonObj = gson.fromJson(body, Map::class.java)
@@ -478,7 +480,7 @@ class CharlesSchwabApi private constructor(
     }
 
 
-    fun getMultiStockQuote(symbols: List<String>): Map<String, StockQuote>? {
+    fun getMultiStockQuote(symbols: Collection<String>): Map<String, StockQuote>? {
         try {
             val body = getMultiQuote(symbols) ?: return null
             val jsonObj = gson.fromJson(body, Map::class.java)
@@ -494,6 +496,50 @@ class CharlesSchwabApi private constructor(
             Log.w("getMultiStockQuote()", "Failed Response, Exception: ${e.message}\n${e.stackTrace}")
             return null
         }
+    }
+
+
+    fun getMultiStockAndOptionQuotes(symbols: Collection<String>): QuotesCombined? {
+
+        // Only used in this function
+        fun isOptionSymbol(symbol: String): Boolean {
+            // Basic pattern: [root symbol][6-digit date][C|P][strike price]
+            val optionPattern = Regex("""^[A-Z]{1,6}\s+\d{6}[CP]\d{8}$""")
+            return optionPattern.matches(symbol)
+        }
+
+        // Raw 'body' JSON string containing quotes for Options and Stocks
+        val requestSet = symbols.toSet()        // Remove duplicates
+        val rawReturnString = getMultiQuote(symbols)
+
+        // Convert to Map so that data is sorted by Keys
+        val stageOne: Map<String, JsonElement> = gson.fromJson(
+            rawReturnString,
+            object : TypeToken<Map<String, JsonElement>>() {}.type
+        )
+
+        // Maps of the extracted quote data
+        val stockQuotes = mutableMapOf<String, StockQuote>()
+        val optionQuotes = mutableMapOf<String, OptionQuote>()
+
+        // Loop through each key and determine if it's an Option or Stock
+        for (key in stageOne.keys) {
+
+            // Option   -- Convert the messy response class to a simpler type, add to map
+            if (isOptionSymbol(key)){
+                val messyResp = gson.fromJson<OptionQuoteResp>(stageOne[key], OptionQuoteResp::class.java)
+                optionQuotes.put(key, messyResp.toOptionQuote())
+            }
+
+            // Stock    -- Convert the messy response class to a simpler type, add to map
+            else {
+                val messyResp = gson.fromJson(stageOne[key], StockQuoteResponse::class.java)
+                stockQuotes.put(key, messyResp.toStockQuote())
+            }
+        }
+
+        // Build return object
+        return QuotesCombined(stockQuoteMap = stockQuotes, optionQuoteMap = optionQuotes)
     }
 
 
@@ -901,7 +947,5 @@ class CharlesSchwabApi private constructor(
             }
         }
     }
-
-
 }
 

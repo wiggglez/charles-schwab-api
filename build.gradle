@@ -27,7 +27,7 @@ publishing {
         maven(MavenPublication) {
             groupId 'com.github.wiggglez'
             artifactId 'charles-schwab-api'
-            version '1.2-alpha'
+            version '1.3-alpha'
             from components.java
         }
     }
