@@ -485,12 +485,36 @@ class CharlesSchwabApi private constructor(
             val body = getMultiQuote(symbols) ?: return null
             val jsonObj = gson.fromJson(body, Map::class.java)
             val quoteMap = mutableMapOf<String, StockQuote>()
+            var exceptionCaught = false
+            var nExceptionsCaught = 0
             for(k in jsonObj.keys) {
-                val rawQuote = jsonObj[k]
-                val quoteJson = gson.toJson(rawQuote)
-                val quote = gson.fromJson(quoteJson, StockQuoteResponse::class.java).toStockQuote()
-                quoteMap.put(k.toString(), quote)
+                try {
+                    val rawQuote = jsonObj[k]
+                    if (rawQuote == "null") {
+                        continue
+                    }
+                    val quoteJson = gson.toJson(rawQuote)
+                    val quote = gson.fromJson(quoteJson, StockQuoteResponse::class.java).toStockQuote()
+                    quoteMap.put(k.toString(), quote)
+                } catch (e: Exception) {
+                    if (exceptionCaught) {
+                        nExceptionsCaught ++
+                        continue
+                    }
+                    Log.w(
+                        CharlesSchwabApi::class.simpleName.toString(),
+                        "getMultiStockQuote() Caught an exception: ${e.message}." +
+                                " Further Exceptions will be silenced."
+                    )
+                    exceptionCaught = true
+                    nExceptionsCaught ++
+                }
+
             }
+            Log.w(
+                CharlesSchwabApi::class.simpleName.toString(),
+                "getMultiStockQuote() Number of exceptions caught: $nExceptionsCaught"
+            )
             return quoteMap
         } catch (e: Exception){
             Log.w("getMultiStockQuote()", "Failed Response, Exception: ${e.message}\n${e.stackTrace}")
@@ -521,23 +545,42 @@ class CharlesSchwabApi private constructor(
         // Maps of the extracted quote data
         val stockQuotes = mutableMapOf<String, StockQuote>()
         val optionQuotes = mutableMapOf<String, OptionQuote>()
-
+        var exceptionCaught = false
+        var nExceptionsCaught = 0
         // Loop through each key and determine if it's an Option or Stock
         for (key in stageOne.keys) {
+            try {
+                // Option   -- Convert the messy response class to a simpler type, add to map
+                if (isOptionSymbol(key)){
+                    val messyResp = gson.fromJson<OptionQuoteResp>(stageOne[key], OptionQuoteResp::class.java)
+                    optionQuotes.put(key, messyResp.toOptionQuote())
+                }
 
-            // Option   -- Convert the messy response class to a simpler type, add to map
-            if (isOptionSymbol(key)){
-                val messyResp = gson.fromJson<OptionQuoteResp>(stageOne[key], OptionQuoteResp::class.java)
-                optionQuotes.put(key, messyResp.toOptionQuote())
+                // Stock    -- Convert the messy response class to a simpler type, add to map
+                else {
+                    val messyResp = gson.fromJson(stageOne[key], StockQuoteResponse::class.java)
+                    stockQuotes.put(key, messyResp.toStockQuote())
+                }
+            } catch (E: Exception) {
+                if (exceptionCaught) {
+                    nExceptionsCaught ++
+                    continue
+                }
+                Log.w(
+                    CharlesSchwabApi::class.simpleName.toString(),
+                    "getMultiStockAndOptionQuotes() Caught an exception: ${E.message}." +
+                            " Further Exceptions will be silenced."
+                )
+                exceptionCaught = true
+                nExceptionsCaught ++
             }
 
-            // Stock    -- Convert the messy response class to a simpler type, add to map
-            else {
-                val messyResp = gson.fromJson(stageOne[key], StockQuoteResponse::class.java)
-                stockQuotes.put(key, messyResp.toStockQuote())
-            }
+
         }
-
+        Log.w(
+            CharlesSchwabApi::class.simpleName.toString(),
+            "getMultiStockAndOptionQuotes() Number of exceptions caught: $nExceptionsCaught"
+        )
         // Build return object
         return QuotesCombined(stockQuoteMap = stockQuotes, optionQuoteMap = optionQuotes)
     }
