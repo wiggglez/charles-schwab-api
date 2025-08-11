@@ -485,8 +485,6 @@ class CharlesSchwabApi private constructor(
             val body = getMultiQuote(symbols) ?: return null
             val jsonObj = gson.fromJson(body, Map::class.java)
             val quoteMap = mutableMapOf<String, StockQuote>()
-            var exceptionCaught = false
-            var nExceptionsCaught = 0
             for(k in jsonObj.keys) {
                 try {
                     val rawQuote = jsonObj[k]
@@ -497,24 +495,10 @@ class CharlesSchwabApi private constructor(
                     val quote = gson.fromJson(quoteJson, StockQuoteResponse::class.java).toStockQuote()
                     quoteMap.put(k.toString(), quote)
                 } catch (e: Exception) {
-                    if (exceptionCaught) {
-                        nExceptionsCaught ++
-                        continue
-                    }
-                    Log.w(
-                        CharlesSchwabApi::class.simpleName.toString(),
-                        "getMultiStockQuote() Caught an exception: ${e.message}." +
-                                " Further Exceptions will be silenced."
-                    )
-                    exceptionCaught = true
-                    nExceptionsCaught ++
+                    // Do nothing
                 }
 
             }
-            Log.w(
-                CharlesSchwabApi::class.simpleName.toString(),
-                "getMultiStockQuote() Number of exceptions caught: $nExceptionsCaught"
-            )
             return quoteMap
         } catch (e: Exception){
             Log.w("getMultiStockQuote()", "Failed Response, Exception: ${e.message}\n${e.stackTrace}")
@@ -545,8 +529,7 @@ class CharlesSchwabApi private constructor(
         // Maps of the extracted quote data
         val stockQuotes = mutableMapOf<String, StockQuote>()
         val optionQuotes = mutableMapOf<String, OptionQuote>()
-        var exceptionCaught = false
-        var nExceptionsCaught = 0
+
         // Loop through each key and determine if it's an Option or Stock
         for (key in stageOne.keys) {
             try {
@@ -562,25 +545,11 @@ class CharlesSchwabApi private constructor(
                     stockQuotes.put(key, messyResp.toStockQuote())
                 }
             } catch (E: Exception) {
-                if (exceptionCaught) {
-                    nExceptionsCaught ++
-                    continue
-                }
-                Log.w(
-                    CharlesSchwabApi::class.simpleName.toString(),
-                    "getMultiStockAndOptionQuotes() Caught an exception: ${E.message}." +
-                            " Further Exceptions will be silenced."
-                )
-                exceptionCaught = true
-                nExceptionsCaught ++
+                // Do nothing
             }
 
 
         }
-        Log.w(
-            CharlesSchwabApi::class.simpleName.toString(),
-            "getMultiStockAndOptionQuotes() Number of exceptions caught: $nExceptionsCaught"
-        )
         // Build return object
         return QuotesCombined(stockQuoteMap = stockQuotes, optionQuoteMap = optionQuotes)
     }
