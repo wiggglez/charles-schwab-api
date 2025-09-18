@@ -33,6 +33,7 @@ import com.google.gson.JsonElement
 import com.google.gson.reflect.TypeToken
 import okhttp3.FormBody
 import okhttp3.Request
+import okhttp3.internal.closeQuietly
 import java.io.File
 import java.nio.file.Paths
 import java.text.DecimalFormat
@@ -166,70 +167,73 @@ class CharlesSchwabApi private constructor(
             .build()
 
         // Make request
-        val response = NetworkClient.getClient().newCall(req).execute()
-        if (response.isSuccessful) {
+        NetworkClient.getClient().newCall(req).execute().use { response ->
+            if (response.isSuccessful) {
 
-            // Read response and convert to usable data class with expiration time in Ms
-            val tokenResponse = gson.fromJson(response.body?.string(), RefreshTokenResponse::class.java)
+                // Read response and convert to usable data class with expiration time in Ms
+                val tokenResponse = gson.fromJson(response.body?.string(), RefreshTokenResponse::class.java)
 
-            // A-Token expires in 30m. Minus 1min for time safety
-            val accessTokenExpiry = System.currentTimeMillis() + 1_800_000 - 60_000
-            // R-Token expires in 7days. Minus 1hour for time safety
-            val refreshTokenExpiry = System.currentTimeMillis() + 604_800_000 - 3_600_000
+                // A-Token expires in 30m. Minus 1min for time safety
+                val accessTokenExpiry = System.currentTimeMillis() + 1_800_000 - 60_000
+                // R-Token expires in 7days. Minus 1hour for time safety
+                val refreshTokenExpiry = System.currentTimeMillis() + 604_800_000 - 3_600_000
 
-            auth = Authorization(
-                accountNumber = "",
-                accountNumberHashValue =  "",
-                refresh_token = tokenResponse.refresh_token,
-                access_token = tokenResponse.access_token,
-                id_token = tokenResponse.id_token,
-                accessTokenExpiryInMs = accessTokenExpiry,
-                refreshTokenExpiryInMs = refreshTokenExpiry
-            )
+                auth = Authorization(
+                    accountNumber = "",
+                    accountNumberHashValue =  "",
+                    refresh_token = tokenResponse.refresh_token,
+                    access_token = tokenResponse.access_token,
+                    id_token = tokenResponse.id_token,
+                    accessTokenExpiryInMs = accessTokenExpiry,
+                    refreshTokenExpiryInMs = refreshTokenExpiry
+                )
 
 
-            println("Tokens Acquired...Now fetching Account Numbers...")
-            var attempts = 0
-            var actKeys: AccountNumbersResponse? = null
-            while (attempts != 5) {
-                actKeys = getAccountNumbers(tokenResponse.access_token)
-                if (actKeys != null){
-                    break
+                println("Tokens Acquired...Now fetching Account Numbers...")
+                var attempts = 0
+                var actKeys: AccountNumbersResponse? = null
+                while (attempts != 5) {
+                    actKeys = getAccountNumbers(tokenResponse.access_token)
+                    if (actKeys != null){
+                        break
+                    }
+                    attempts += 1
                 }
-                attempts += 1
+                if (actKeys == null){
+                    println("Failed to get account number keys. Please login() again")
+                    exitProcess(0)
+                }
+
+                println("Account Numbers retrieved successfully.")
+
+                val updatedAuth = Authorization(
+                    accountNumber = actKeys.accountNumber,
+                    accountNumberHashValue =  actKeys.hashValue,
+                    refresh_token = tokenResponse.refresh_token,
+                    access_token = tokenResponse.access_token,
+                    id_token = tokenResponse.id_token,
+                    accessTokenExpiryInMs = accessTokenExpiry,
+                    refreshTokenExpiryInMs = refreshTokenExpiry
+                )
+                auth = updatedAuth
+
+                // Save to file
+                println("\n\n" +
+                        "---- Warning ---------------------------------------------------------------------------------" +
+                        "\n\n" +
+                        "Saving Auth File to: $authPath" +
+                        "\n\n" +
+                        "----------------------------------------------------------------------------------------------" +
+                        "\n\n" )
+                FileHelper.writeFile(authPath, gson.toJson(updatedAuth))
+
+            } else {
+                Log.w("${CharlesSchwabApi::class.java.simpleName}.login()", "Login Failed.")
+                throw Exception("Request failed: ${response.code}\n${response.message} \n${response.body?.string()}")
             }
-            if (actKeys == null){
-                println("Failed to get account number keys. Please login() again")
-                exitProcess(0)
-            }
-
-            println("Account Numbers retrieved successfully.")
-
-            val updatedAuth = Authorization(
-                accountNumber = actKeys.accountNumber,
-                accountNumberHashValue =  actKeys.hashValue,
-                refresh_token = tokenResponse.refresh_token,
-                access_token = tokenResponse.access_token,
-                id_token = tokenResponse.id_token,
-                accessTokenExpiryInMs = accessTokenExpiry,
-                refreshTokenExpiryInMs = refreshTokenExpiry
-            )
-            auth = updatedAuth
-
-            // Save to file
-            println("\n\n" +
-                    "---- Warning ---------------------------------------------------------------------------------" +
-                    "\n\n" +
-                    "Saving Auth File to: $authPath" +
-                    "\n\n" +
-                    "----------------------------------------------------------------------------------------------" +
-                    "\n\n" )
-            FileHelper.writeFile(authPath, gson.toJson(updatedAuth))
-
-        } else {
-            Log.w("${CharlesSchwabApi::class.java.simpleName}.login()", "Login Failed.")
-            throw Exception("Request failed: ${response.code}\n${response.message} \n${response.body?.string()}")
         }
+
+
 
     }
 
@@ -270,55 +274,57 @@ class CharlesSchwabApi private constructor(
                 .build()
 
             // Make request
-            val response = NetworkClient.getClient().newCall(req).execute()
-            if (response.isSuccessful) {
+            NetworkClient.getClient().newCall(req).execute().use {response ->
+                if (response.isSuccessful) {
 
-                // Read response and convert to usable data class with expiration time in Ms
-                val tokenResponse = gson.fromJson(response.body?.string(), RefreshTokenResponse::class.java)
-                // A-Token expires in 30m. Minus 1min for time safety
-                val accessTokenExpiry = System.currentTimeMillis() + 1_800_000 - 60_000
-                // R-Token expires in 7days. Minus 1hour for time safety
-                val refreshTokenExpiry = System.currentTimeMillis() + 604_800_000 - 3_600_000
-                println("Tokens Acquired...Now fetching Account Numbers...")
+                    // Read response and convert to usable data class with expiration time in Ms
+                    val tokenResponse = gson.fromJson(response.body?.string(), RefreshTokenResponse::class.java)
+                    // A-Token expires in 30m. Minus 1min for time safety
+                    val accessTokenExpiry = System.currentTimeMillis() + 1_800_000 - 60_000
+                    // R-Token expires in 7days. Minus 1hour for time safety
+                    val refreshTokenExpiry = System.currentTimeMillis() + 604_800_000 - 3_600_000
+                    println("Tokens Acquired...Now fetching Account Numbers...")
 
-                // Get account numbers
-                var attempts = 0
-                var actKeys: AccountNumbersResponse? = null
-                while (attempts != 5) {
-                    actKeys = getAccountNumbers(tokenResponse.access_token)
-                    if (actKeys != null){
-                        break
+                    // Get account numbers
+                    var attempts = 0
+                    var actKeys: AccountNumbersResponse? = null
+                    while (attempts != 5) {
+                        actKeys = getAccountNumbers(tokenResponse.access_token)
+                        if (actKeys != null){
+                            break
+                        }
+                        attempts += 1
+                        Thread.sleep(500)
                     }
-                    attempts += 1
-                    Thread.sleep(500)
-                }
-                if (actKeys == null){
-                    println("Failed to get account number keys. Please login() again")
+                    if (actKeys == null){
+                        println("Failed to get account number keys. Please login() again")
+                        return false
+                    }
+
+                    println("Account Numbers retrieved successfully.")
+
+                    auth = Authorization(
+                        accountNumber = actKeys.accountNumber,
+                        accountNumberHashValue =  actKeys.hashValue,
+                        refresh_token = tokenResponse.refresh_token,
+                        access_token = tokenResponse.access_token,
+                        id_token = tokenResponse.id_token,
+                        accessTokenExpiryInMs = accessTokenExpiry,
+                        refreshTokenExpiryInMs = refreshTokenExpiry
+                    )
+
+                    // Save to file
+                    FileHelper.writeFile(authPath, gson.toJson(auth))
+
+                    return true
+                } else {
+                    Log.w("${CharlesSchwabApi::class.java.simpleName}.login()", "Login " +
+                            "Request failed with Code: ${response.code} " +
+                            "MSG: ${response.message} \n" +
+                            "Body: ${response.body?.string()}")
                     return false
                 }
 
-                println("Account Numbers retrieved successfully.")
-
-                auth = Authorization(
-                    accountNumber = actKeys.accountNumber,
-                    accountNumberHashValue =  actKeys.hashValue,
-                    refresh_token = tokenResponse.refresh_token,
-                    access_token = tokenResponse.access_token,
-                    id_token = tokenResponse.id_token,
-                    accessTokenExpiryInMs = accessTokenExpiry,
-                    refreshTokenExpiryInMs = refreshTokenExpiry
-                )
-
-                // Save to file
-                FileHelper.writeFile(authPath, gson.toJson(auth))
-
-                return true
-            } else {
-                Log.w("${CharlesSchwabApi::class.java.simpleName}.login()", "Login " +
-                        "Request failed with Code: ${response.code} " +
-                        "MSG: ${response.message} \n" +
-                        "Body: ${response.body?.string()}")
-                return false
             }
         } catch (e: Exception) {
             Log.w("CharlesSchwabApi.loginWithCode()", "Failed to login. Exception: \n${e.stackTrace}")
@@ -363,35 +369,37 @@ class CharlesSchwabApi private constructor(
                     .addHeader("Content-Type", "application/x-www-form-urlencoded")
                     .build()
 
-                val requestCall = NetworkClient.getClient().newCall(request).execute()
+                NetworkClient.getClient().newCall(request).execute().use { requestCall ->
+                    if (requestCall.isSuccessful) {
+                        val body = gson.fromJson(requestCall.body?.string(), AccessTokenResponse::class.java)
+                        val newAccessExpiry = System.currentTimeMillis() + 1_800_000 - 60_000       // Minus 1min for time safety
+                        val newAuth = Authorization(
+                            auth.accountNumber,
+                            auth.accountNumberHashValue,
+                            auth.refresh_token,
+                            body.access_token,
+                            body.id_token,
+                            newAccessExpiry,
+                            auth.refreshTokenExpiryInMs
+                        )
+                        val js = gson.toJson(newAuth)
+                        FileHelper.writeFile(authPath, js)
+                        Log.i("CharlesSchwabApi.kt.getAccessToken()", "Access Token Update Success.")
+                        auth = newAuth
+                        return auth.access_token
+                    }
+                    else {
+                        Log.w("getAccessToken()", "Failed Response: ${requestCall.body?.string()}")
+                        return null
+                    }
+                }
 
-                if (requestCall.isSuccessful) {
-                    val body = gson.fromJson(requestCall.body?.string(), AccessTokenResponse::class.java)
-                    val newAccessExpiry = System.currentTimeMillis() + 1_800_000 - 60_000       // Minus 1min for time safety
-                    val newAuth = Authorization(
-                        auth.accountNumber,
-                        auth.accountNumberHashValue,
-                        auth.refresh_token,
-                        body.access_token,
-                        body.id_token,
-                        newAccessExpiry,
-                        auth.refreshTokenExpiryInMs
-                    )
-                    val js = gson.toJson(newAuth)
-                    FileHelper.writeFile(authPath, js)
-                    Log.i("CharlesSchwabApi.kt.getAccessToken()", "Access Token Update Success.")
-                    auth = newAuth
-                    return auth.access_token
-                }
-                else {
-                    Log.w("getAccessToken()", "Failed Response: ${requestCall.body?.string()}")
-                    return null
-                }
             } catch (e: Exception){
                 Log.w("getAccessToken()", "Failed Response: ${e.message}")
                 e.printStackTrace()
                 return null
             }
+
         }
     }
 
@@ -416,15 +424,17 @@ class CharlesSchwabApi private constructor(
                 .get()
                 .url(market_data_base_endpoint + "/${s}/quotes")
                 .build()
-            val resp = NetworkClient.getClient().newCall(req).execute()
-            if (resp.isSuccessful) {
-                return resp.body?.string()
+            NetworkClient.getClient().newCall(req).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    return resp.body?.string()
 
-            } else {
-                Log.w("getQuote()", "Response not Successful. Code: ${resp.code}. Message: ${resp.message}\n" +
-                        "Body: ${resp.body}")
-                return null
+                } else {
+                    Log.w("getQuote()", "Response not Successful. Code: ${resp.code}. Message: ${resp.message}\n" +
+                            "Body: ${resp.body}")
+                    return null
+                }
             }
+
         } catch (e: Exception){
             Log.w("getQuote()", "Failed Response. ${e.message}")
             return null
@@ -445,14 +455,16 @@ class CharlesSchwabApi private constructor(
                 .get()
                 .url(market_data_base_endpoint + "/quotes" + "?${params.joinToString("&")}")
                 .build()
-            val resp = NetworkClient.getClient().newCall(req).execute()
-            if (resp.isSuccessful) {
-                return resp.body?.string()
-            } else {
-                Log.w("getQuote()", "Response not Successful. Code: ${resp.code}. Message: ${resp.message}\n" +
-                        "Body: ${resp.body}")
-                return null
+            NetworkClient.getClient().newCall(req).execute().use {resp ->
+                if (resp.isSuccessful) {
+                    return resp.body?.string()
+                } else {
+                    Log.w("getQuote()", "Response not Successful. Code: ${resp.code}. Message: ${resp.message}\n" +
+                            "Body: ${resp.body}")
+                    return null
+                }
             }
+
         } catch (e: Exception){
             Log.w("getQuote()", "Failed Response. ${e.message}")
             return null
@@ -625,17 +637,19 @@ class CharlesSchwabApi private constructor(
                 .get()
                 .url(url)
                 .build()
-            val resp = NetworkClient.getClient().newCall(req).execute()
-            if (resp.isSuccessful) {
-                val body = resp.body?.string()
-                val ocr = gson.fromJson(body, OptionChainResponse::class.java)
-                val n = ocr.convertToOptionChain()
-                return n
+            NetworkClient.getClient().newCall(req).execute().use {resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string()
+                    val ocr = gson.fromJson(body, OptionChainResponse::class.java)
+                    val n = ocr.convertToOptionChain()
+                    return n
+                }
+                else {
+                    Log.w("getOptionChain", "Request Failed, MSG:\t" + resp.body?.string())
+                    return null
+                }
             }
-            else {
-                Log.w("getOptionChain", "Request Failed, MSG:\t" + resp.body?.string())
-                return null
-            }
+
         } catch (e: Exception){
             Log.w("getOptionChain", "Request Failed. ${e.message}")
             return null
@@ -677,16 +691,18 @@ class CharlesSchwabApi private constructor(
                 .get()
                 .url(url)
                 .build()
-            val resp = NetworkClient.getClient().newCall(req).execute()
-            if (resp.isSuccessful) {
-                val body = resp.body?.string()
-                val chartResp = gson.fromJson(body, ChartResponse::class.java)
-                val timeInterval = "$frequency${frequencyType.get(0)}"
-                val periodRange = "$period${periodType.get(0)}"
-                return chartResp.convertToStockChart(timeInterval, periodRange)
+            NetworkClient.getClient().newCall(req).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string()
+                    val chartResp = gson.fromJson(body, ChartResponse::class.java)
+                    val timeInterval = "$frequency${frequencyType.get(0)}"
+                    val periodRange = "$period${periodType.get(0)}"
+                    return chartResp.convertToStockChart(timeInterval, periodRange)
 
-            } else {
-                Log.w("getHistoricData()", "Failed Response. ${resp.body?.string()}")
+                } else {
+                    Log.w("getHistoricData()", "Failed Response. ${resp.body?.string()}")
+                }
+
             }
         } catch (e: Exception) {
             Log.w("getHistoricData()", "Failed Response. Null")
@@ -822,18 +838,20 @@ class CharlesSchwabApi private constructor(
             .header("accept", "application/json")
             .build()
 
-        val resp = NetworkClient.getClient().newCall(req).execute()
-        if (resp.isSuccessful) {
-            val body = resp.body?.string()
-            val accountListType = object : TypeToken<List<AccountNumbersResponse>>() {}.type
-            val accountKeys = gson.fromJson<List<AccountNumbersResponse>?>(
-                body,
-                accountListType
-            ).get(0)        // Only 1 item in list
+        NetworkClient.getClient().newCall(req).execute().use { resp ->
+            if (resp.isSuccessful) {
+                val body = resp.body?.string()
+                val accountListType = object : TypeToken<List<AccountNumbersResponse>>() {}.type
+                val accountKeys = gson.fromJson<List<AccountNumbersResponse>?>(
+                    body,
+                    accountListType
+                ).get(0)        // Only 1 item in list
 
-            return accountKeys
-        } else {
-            return null
+                return accountKeys
+            } else {
+                return null
+            }
+
         }
     }
 
@@ -850,52 +868,54 @@ class CharlesSchwabApi private constructor(
                 .build()
 
             // Execute request, check success
-            val resp = NetworkClient.getClient().newCall(req).execute()
-            if (resp.isSuccessful) {
+            NetworkClient.getClient().newCall(req).execute().use { resp ->
+                if (resp.isSuccessful) {
 
-                // Convert Json to Full Response Object (Lots of unwanted data)
-                val body = resp.body?.string()
-                val ttoken = object : TypeToken<List<AcctInfoResponse>>() {}.type
-                val responseRawObj = gson.fromJson<List<AcctInfoResponse>>(
-                    body,
-                    ttoken
-                ).get(0)        // There's only 1 item in list
+                    // Convert Json to Full Response Object (Lots of unwanted data)
+                    val body = resp.body?.string()
+                    val ttoken = object : TypeToken<List<AcctInfoResponse>>() {}.type
+                    val responseRawObj = gson.fromJson<List<AcctInfoResponse>>(
+                        body,
+                        ttoken
+                    ).get(0)        // There's only 1 item in list
 
-                val obj = responseRawObj.securitiesAccount
+                    val obj = responseRawObj.securitiesAccount
 
-                // Convert Full Response Object to Preferred Data Class with relevant fields
-                val data = AccountInfo(
-                    initialBalances = InitialBalances(
-                        buyingPower = obj.initialBalances.buyingPower,
-                        cashBalance = obj.initialBalances.cashBalance,
-                        cashAvailableForTrading = obj.initialBalances.cashAvailableForTrading,
-                        equity = obj.initialBalances.equity,
-                        totalCash = obj.initialBalances.totalCash,
-                        unsettledCash = obj.initialBalances.unsettledCash,
-                        pendingDeposits = obj.initialBalances.pendingDeposits,
-                        accountValue = obj.initialBalances.accountValue
-                    ),
-                    currentBalances = CurrentBalances(
-                        availableFunds = obj.currentBalances.availableFunds,
-                        buyingPower = obj.currentBalances.buyingPower,
-                        equity = obj.currentBalances.equity,
-                        stockBuyingPower = obj.currentBalances.stockBuyingPower,
-                        optionBuyingPower = obj.currentBalances.optionBuyingPower
-                    ),
-                    openPositions = obj.positions ?: listOf()
-                )
+                    // Convert Full Response Object to Preferred Data Class with relevant fields
+                    val data = AccountInfo(
+                        initialBalances = InitialBalances(
+                            buyingPower = obj.initialBalances.buyingPower,
+                            cashBalance = obj.initialBalances.cashBalance,
+                            cashAvailableForTrading = obj.initialBalances.cashAvailableForTrading,
+                            equity = obj.initialBalances.equity,
+                            totalCash = obj.initialBalances.totalCash,
+                            unsettledCash = obj.initialBalances.unsettledCash,
+                            pendingDeposits = obj.initialBalances.pendingDeposits,
+                            accountValue = obj.initialBalances.accountValue
+                        ),
+                        currentBalances = CurrentBalances(
+                            availableFunds = obj.currentBalances.availableFunds,
+                            buyingPower = obj.currentBalances.buyingPower,
+                            equity = obj.currentBalances.equity,
+                            stockBuyingPower = obj.currentBalances.stockBuyingPower,
+                            optionBuyingPower = obj.currentBalances.optionBuyingPower
+                        ),
+                        openPositions = obj.positions ?: listOf()
+                    )
 
-                return data
+                    return data
+                }
+                else {
+                    Log.w(
+                        CharlesSchwabApi::class.java.simpleName.toString(),
+                        "'getAccountInfo() request was unsuccessful.\n" +
+                                "Response: ${resp.body?.string()}\n" +
+                                "Code: ${resp.code}"
+                    )
+                    return null
+                }
             }
-            else {
-                Log.w(
-                    CharlesSchwabApi::class.java.simpleName.toString(),
-                    "'getAccountInfo() request was unsuccessful.\n" +
-                            "Response: ${resp.body?.string()}\n" +
-                            "Code: ${resp.code}"
-                )
-                return null
-            }
+
 
 
         } catch (E: Exception) {
