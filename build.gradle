@@ -27,7 +27,7 @@ publishing {
         maven(MavenPublication) {
             groupId 'com.github.wiggglez'
             artifactId 'charles-schwab-api'
-            version '1.7-droid'
+            version '2.0'
             from components.java
         }
     }

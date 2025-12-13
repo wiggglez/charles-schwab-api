@@ -80,7 +80,13 @@ class CharlesSchwabApi private constructor(
     private fun initAuth(): Authorization {
         // Try to load or  create blank auth instead
         try {
-            return tokenHandler.getTokens()
+
+            val tokens = tokenHandler.getTokens()
+            if (tokens == null) {
+                return Authorization()
+            } else {
+                return tokens
+            }
         } catch (e: Exception) {
             println("\n#############################################################################################")
             println("\nWarning -- Failed: TokenHandler.getTokens() -- Either Token Handler failed " +

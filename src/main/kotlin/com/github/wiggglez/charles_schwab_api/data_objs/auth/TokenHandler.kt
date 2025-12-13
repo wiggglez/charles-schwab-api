@@ -4,7 +4,7 @@ interface TokenHandler {
 
     fun saveTokens(authTokens: Authorization)
 
-    fun getTokens(): Authorization
+    fun getTokens(): Authorization?
 
 
 }
