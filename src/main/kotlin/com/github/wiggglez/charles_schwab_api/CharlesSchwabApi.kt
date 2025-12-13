@@ -11,6 +11,7 @@ import com.github.wiggglez.charles_schwab_api.data_objs.OptionChain
 import com.github.wiggglez.charles_schwab_api.data_objs.OptionQuote
 import com.github.wiggglez.charles_schwab_api.data_objs.StockQuote
 import com.github.wiggglez.charles_schwab_api.data_objs.TopStockLists
+import com.github.wiggglez.charles_schwab_api.data_objs.auth.TokenHandler
 import com.github.wiggglez.charles_schwab_api.data_objs.responses.AccountNumbersResponse
 import com.github.wiggglez.charles_schwab_api.data_objs.responses.AcctInfoResponse
 import com.github.wiggglez.charles_schwab_api.data_objs.responses.ChartResponse
@@ -33,9 +34,6 @@ import com.google.gson.JsonElement
 import com.google.gson.reflect.TypeToken
 import okhttp3.FormBody
 import okhttp3.Request
-import okhttp3.internal.closeQuietly
-import java.io.File
-import java.nio.file.Paths
 import java.text.DecimalFormat
 import java.time.Instant
 import java.time.ZoneId
@@ -45,38 +43,26 @@ import kotlin.collections.get
 import kotlin.system.exitProcess
 
 
+
+/** IMPORTANT: To  init this class you need to create a class implementing the TokenHandler interface*/
 class CharlesSchwabApi private constructor(
     private val appKeyGetter: () -> String,
     private val appSecretGetter: () -> String,
-    authJsonSavePath: String? = null,
+    private val tokenHandler: TokenHandler,
 ) {
+
+
     private val threadLockAccessToken = Any()
     private var auth: Authorization
     private lateinit var topStockLists: TopStockLists
     private val account_base_endpoint = "https://api.schwabapi.com/trader/v1"
     private val market_data_base_endpoint = "https://api.schwabapi.com/marketdata/v1"
     private val auth_base_endpoint = "https://api.schwabapi.com/v1/oauth"
-    private val authPath: String
 
     init {
-        if (authJsonSavePath == null) {
-            val currentDir = Paths.get("").toAbsolutePath().toString()
-            authPath = currentDir + "${File.separator}csApi_auth.json"
-        }
-        else {
-            if (!authJsonSavePath.lowercase().endsWith(".json")){
-                println("\u001B[31m -- WARNING --\n" +
-                        "Location: CharlesSchwabApi().buildApi()\n" +
-                        "Fix: The parameter 'authJsonSavePath' Must end with .json\n" +
-                        "Exiting Program")
-                exitProcess(-1)
-            }
-            authJsonSavePath.lowercase().endsWith(".json")
-            authPath = authJsonSavePath
-        }
 
         // Try to load auth keys
-        auth = initAuthJson()
+        auth = initAuth()
         // Check status of Refresh Token
         init_check_refresh_token()
         loadTopStocksList()
@@ -91,17 +77,16 @@ class CharlesSchwabApi private constructor(
     }
 
 
-    private fun initAuthJson(): Authorization {
-        // Try to load
+    private fun initAuth(): Authorization {
+        // Try to load or  create blank auth instead
         try {
-            val json = FileHelper.readFileToString(authPath)
-            return gson.fromJson(json, Authorization::class.java)
+            return tokenHandler.getTokens()
         } catch (e: Exception) {
             println("\n#############################################################################################")
-            println("\nWarning -- No Auth File Found. New Auth Created. Please Login.\n")
+            println("\nWarning -- Failed: TokenHandler.getTokens() -- Either Token Handler failed " +
+                    "Or you need to login.\n")
             println("#############################################################################################\n")
             val a = Authorization()
-            FileHelper.writeFile(authPath, gson.toJson(a))
             return a
         }
     }
@@ -217,15 +202,7 @@ class CharlesSchwabApi private constructor(
                 )
                 auth = updatedAuth
 
-                // Save to file
-                println("\n\n" +
-                        "---- Warning ---------------------------------------------------------------------------------" +
-                        "\n\n" +
-                        "Saving Auth File to: $authPath" +
-                        "\n\n" +
-                        "----------------------------------------------------------------------------------------------" +
-                        "\n\n" )
-                FileHelper.writeFile(authPath, gson.toJson(updatedAuth))
+                tokenHandler.saveTokens(updatedAuth)
 
             } else {
                 Log.w("${CharlesSchwabApi::class.java.simpleName}.login()", "Login Failed.")
@@ -313,8 +290,8 @@ class CharlesSchwabApi private constructor(
                         refreshTokenExpiryInMs = refreshTokenExpiry
                     )
 
-                    // Save to file
-                    FileHelper.writeFile(authPath, gson.toJson(auth))
+                    // Save tokens
+                    tokenHandler.saveTokens(auth)
 
                     return true
                 } else {
@@ -382,8 +359,7 @@ class CharlesSchwabApi private constructor(
                             newAccessExpiry,
                             auth.refreshTokenExpiryInMs
                         )
-                        val js = gson.toJson(newAuth)
-                        FileHelper.writeFile(authPath, js)
+                        tokenHandler.saveTokens(newAuth)
                         Log.i("CharlesSchwabApi.kt.getAccessToken()", "Access Token Update Success.")
                         auth = newAuth
                         return auth.access_token
@@ -944,31 +920,16 @@ class CharlesSchwabApi private constructor(
             }
         }
 
-
-//        fun buildApi(
-//            appKey: String,
-//            appSecret: String,
-//            savePath: String? = null
-//        ): CharlesSchwabApi {
-//            if (instance == null){
-//                instance = CharlesSchwabApi(appKey, appSecret, savePath)
-//                return instance!!
-//            } else {
-//                println("CsApi() Has already been built with Auth JSON Path set to: $path")
-//                return instance!!
-//            }
-//        }
-
-
+        /** IMPORTANT: To  init this class you need to create a class implementing the TokenHandler interface*/
         fun buildApi(
             appKeyGetter: () -> String,
             appSecretGetter: () -> String,
-            tokenSavePath: String? = null
+            tokenHandler: TokenHandler
         ): CharlesSchwabApi {
 
             if (instance == null) {
                 instance = CharlesSchwabApi(
-                    appKeyGetter, appSecretGetter, tokenSavePath
+                    appKeyGetter, appSecretGetter, tokenHandler
                 )
                 return instance!!
             } else {
