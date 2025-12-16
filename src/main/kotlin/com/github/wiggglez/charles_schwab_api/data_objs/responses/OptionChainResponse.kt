@@ -44,7 +44,7 @@ internal data class OptionResponse(
     val lowPrice: Double,
     val openPrice: Double,
     val closePrice: Double,
-    val totalVolume: Int,
+    val totalVolume: Long,
     val tradeTimeInLong: Long,
     val quoteTimeInLong: Long,
     val netChange: Double,

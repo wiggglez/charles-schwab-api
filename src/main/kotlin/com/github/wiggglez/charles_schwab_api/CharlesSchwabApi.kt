@@ -634,6 +634,7 @@ class CharlesSchwabApi private constructor(
 
         } catch (e: Exception){
             Log.w("getOptionChain", "Request Failed. ${e.message}")
+            e.printStackTrace()
             return null
         }
     }
