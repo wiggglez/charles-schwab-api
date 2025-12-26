@@ -80,7 +80,7 @@ data class Option(
     val theta: Double,
     val vega: Double,
     val rho: Double,
-    val openInterest: Int,
+    val openInterest: Long,
     val timeValue: Double,
     val theoreticalOptionValue: Double,
     val theoreticalVolatility: Double,
