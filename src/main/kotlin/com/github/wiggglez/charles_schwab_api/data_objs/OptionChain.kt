@@ -105,7 +105,8 @@ data class Option(
     val nonStandard: Boolean,
     val pennyPilot: Boolean,
     val inTheMoney: Boolean,
-    val mini: Boolean
+    val mini: Boolean,
+    val underlying: Underlying
 )
 
 

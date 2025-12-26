@@ -84,7 +84,7 @@ internal data class OptionResponse(
 
 
 
-internal fun OptionResponse.toOption(): Option {
+internal fun OptionResponse.toOption(underlying: Underlying): Option {
     return Option(
         putCall = this.putCall,
         symbol = this.symbol,
@@ -137,7 +137,8 @@ internal fun OptionResponse.toOption(): Option {
         nonStandard = this.nonStandard,
         pennyPilot = this.pennyPilot,
         inTheMoney = this.inTheMoney,
-        mini = this.mini
+        mini = this.mini,
+        underlying = underlying
     )
 }
 
@@ -153,12 +154,12 @@ internal fun OptionChainResponse.convertToOptionChain(): OptionChain {
         val newCallSMap = mutableMapOf<String, Option>()
         val newPutSMap = mutableMapOf<String, Option>()
         for (s in csMap!!){
-            val co = this.callExpDateMap[exp]!![s]!![0].toOption()
+            val co = this.callExpDateMap[exp]!![s]!![0].toOption(this.underlying)
             newCallSMap.put(s, co)
         }
         newCMap.put(exp, newCallSMap)
         for (s in psMap!!){
-            val po = this.putExpDateMap[exp]!![s]!![0].toOption()
+            val po = this.putExpDateMap[exp]!![s]!![0].toOption(this.underlying)
             newPutSMap.put(s, po)
         }
         newPMap.put(exp, newPutSMap)
